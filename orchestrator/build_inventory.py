@@ -31,7 +31,10 @@ SRC_ROOT = Path(r"c:\Users\John\Desktop\project\detali_photos")
 STAGING = HERE / "staging"
 DB_PATH = HERE / "inventory.db"
 
-BATCH_SIZE = 25
+# =2: один батч = один акк = одно signup на одном github-runner с уникальным IP.
+# на каждом runner делаем РОВНО ОДИН signup (cf пропускает первый, 2-й даёт 429),
+# поэтому ставим минимально полезный размер = IMAGES_PER_ACCOUNT.
+BATCH_SIZE = 2
 EXTS = {".webp", ".jpg", ".jpeg", ".png"}
 
 

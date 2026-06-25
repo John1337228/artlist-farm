@@ -80,7 +80,7 @@ def process_account(
     out_dir: Path,
     results_tsv,
 ) -> int:
-    """один акк + 2 генерации (по числу элементов в chunk)."""
+    """один акк + до 2 генераций (по числу элементов в chunk)."""
     saved = 0
     with httpx.Client(timeout=20) as mc:
         mail_acc = create_account(mc)
@@ -187,8 +187,6 @@ def main() -> int:
             saved = 0
         saved_total += saved
         print(f"[acc {ci + 1}] saved {saved}/{len(chunk)} in {time.time()-t0:.1f}s")
-        # cool-down между signup'ами с одного раннера — anti-abuse оракул
-        time.sleep(2)
 
     results_tsv.close()
     print(f"[done] saved {saved_total}/{len(items)}")
