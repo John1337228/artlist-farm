@@ -106,13 +106,21 @@ class ArtlistClient:
         if self.verbose:
             print("[artlist]", *a)
 
+    NAV_HEADERS = {
+        "accept": (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+            "image/avif,image/webp,image/apng,*/*;q=0.8"
+        ),
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "none",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+    }
+
     def _warmup(self) -> None:
-        """GET / чтобы получить __cf_bm cookie и любые next-router state."""
-        if self._warmed:
-            return
-        r = self.session.get(f"{TOOLKIT}/", allow_redirects=True)
-        if r.status_code != 200:
-            self.log(f"warmup HTTP {r.status_code}")
+        """warmup необязателен — __cf_bm выдаётся cloudflare на любой запрос (включая csrf).
+        оставлен как no-op для совместимости."""
         self._warmed = True
 
     def _request(self, method: str, path: str, **kwargs):
@@ -267,14 +275,18 @@ class ArtlistClient:
     _UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
 
     def get_team_id(self) -> str:
-        """teamId создаётся при signup и отдаётся клиенту через SSR-payload главной.
-        грабим первый UUID v4 из HTML / — это и есть teamId free-юзера."""
-        r = self._request("GET", "/")
+        """teamId создаётся при signup, отдаётся в SSR-payload страницы генератора.
+        используем /image-video-generator?mode=image — это post-login route, cloudflare не блочит."""
+        # navigation headers — без origin/referer, с sec-fetch-dest=document
+        r = self._request("GET", "/image-video-generator?mode=image", headers=self.NAV_HEADERS)
         if r.status_code != 200:
-            raise ArtlistError(f"get_team_id: GET / HTTP {r.status_code}")
+            # фоллбэк на /
+            r = self._request("GET", "/", headers=self.NAV_HEADERS)
+            if r.status_code != 200:
+                raise ArtlistError(f"get_team_id: HTTP {r.status_code} body={r.text[:200]}")
         m = self._UUID_RE.search(r.text)
         if not m:
-            raise ArtlistError("get_team_id: no UUID v4 in /")
+            raise ArtlistError("get_team_id: no UUID v4 found")
         return m.group(0)
 
     def create_chat_session(self, name: str = "auto session", team_id: Optional[str] = None) -> str:
