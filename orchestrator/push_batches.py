@@ -13,7 +13,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 STAGING = HERE / "staging"
 REPO = "John1337228/artlist-inputs"
-# github limit: 1000 assets per release → шардируем: batches-0 = 0..999, batches-1 = 1000..1999, ...
+# github limit: 1000 assets per release
 ASSETS_PER_RELEASE = 1000
 
 
@@ -46,21 +46,35 @@ def ensure_release(tag: str) -> None:
 import time as _t
 
 
-def upload_batches(tag: str, zips: list[Path]) -> None:
-    """upload группы файлов в указанный release с retry на github secondary rate limit."""
+def upload_batches(tag: str, zips: list[Path]) -> int:
+    """upload группы файлов в указанный release. возвращает кол-во успешно загруженных."""
     paths = [str(z) for z in zips]
     backoff = 30
     for attempt in range(6):
         code, out = gh("release", "upload", tag, *paths, "-R", REPO, "--clobber")
         if code == 0:
-            return
+            return len(zips)
         if "secondary rate limit" in out.lower() or "HTTP 403" in out:
             print(f"  rate-limit hit on {tag}, sleep {backoff}s")
             _t.sleep(backoff)
             backoff = min(backoff * 2, 300)
             continue
-        raise SystemExit(f"failed to upload to {tag}: {out[:500]}")
-    raise SystemExit("upload retries exhausted")
+        if "1000 assets per release" in out:
+            # release заполнен — это терминальная ошибка для текущего тэга
+            print(f"  [{tag}] release full (1000 limit); will skip remaining in this shard")
+            return 0
+        # неизвестная ошибка — фолбэк на одиночные uploads чтобы максимизировать сохранённое
+        print(f"  group failed ({out[:200]}), falling back to per-file")
+        ok = 0
+        for z in zips:
+            c2, o2 = gh("release", "upload", tag, str(z), "-R", REPO, "--clobber")
+            if c2 == 0:
+                ok += 1
+            else:
+                print(f"    ! skip {z.name}: {o2[:200]}")
+        return ok
+    print(f"  [{tag}] upload retries exhausted; skipping group")
+    return 0
 
 
 def already_uploaded(tag: str) -> set[str]:
@@ -81,7 +95,7 @@ def main():
     for z in zips:
         t = tag_for(batch_id_of(z.name))
         by_tag.setdefault(t, []).append(z)
-    print(f"{len(zips)} zips → {len(by_tag)} releases: " + ", ".join(f"{k}={len(v)}" for k, v in by_tag.items()))
+    print(f"{len(zips)} zips -> {len(by_tag)} releases: " + ", ".join(f"{k}={len(v)}" for k, v in by_tag.items()))
 
     GROUP = 25
     INTER_GROUP_SLEEP = 12.0
@@ -95,8 +109,10 @@ def main():
         print(f"[{tag}] {len(lst)} total, {len(have)} already uploaded, {len(pending)} pending")
         for i in range(0, len(pending), GROUP):
             chunk = pending[i : i + GROUP]
-            upload_batches(tag, chunk)
-            total_done += len(chunk)
+            ok = upload_batches(tag, chunk)
+            if ok == 0 and "release full" in (locals().get('_last', '')):
+                break
+            total_done += ok
             elapsed = _t.time() - t0
             rate = total_done / max(elapsed, 0.1)
             eta = (grand_total - total_done) / max(rate, 0.01)

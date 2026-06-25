@@ -18,7 +18,6 @@ import sqlite3
 import subprocess
 import sys
 import time
-import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -35,6 +34,28 @@ def gh(*args: str, capture: bool = True) -> tuple[int, str]:
         capture_output=capture, text=True, encoding="utf-8", errors="replace",
     )
     return p.returncode, (p.stdout + p.stderr)
+
+
+def wait_for_rate_limit(min_remaining: int = 500) -> None:
+    """блокируем пока github core api quota < min_remaining."""
+    while True:
+        code, out = gh("api", "rate_limit", "-q", ".resources.core")
+        if code != 0:
+            print(f"  rate_limit check failed: {out[:120]}, sleeping 60s")
+            time.sleep(60)
+            continue
+        try:
+            data = json.loads(out)
+        except Exception:
+            time.sleep(60)
+            continue
+        rem = data.get("remaining", 0)
+        reset = data.get("reset", time.time() + 60)
+        if rem >= min_remaining:
+            return
+        wait = max(15, int(reset - time.time()) + 10)
+        print(f"  rate_limit only {rem} left, sleeping {wait}s until reset")
+        time.sleep(wait)
 
 
 def total_batches() -> int:
@@ -101,6 +122,7 @@ def run_chunk(start: int, end: int, prompt: str) -> str | None:
     """запускает farm workflow на batches=start-end, ждёт завершения. возвращает run_id."""
     spec = f"{start}-{end}"
     print(f"\n=== chunk {spec} ({end - start + 1} batches) ===")
+    wait_for_rate_limit(min_remaining=500)
     code, out = gh("workflow", "run", "farm",
                    "-F", f"batches={spec}",
                    "-F", f"prompt={prompt}",
@@ -108,18 +130,18 @@ def run_chunk(start: int, end: int, prompt: str) -> str | None:
     if code != 0:
         print(f"  ! workflow run failed: {out[:300]}")
         return None
-    # ждём пока появится run в списке
-    time.sleep(7)
+    time.sleep(8)
     code, out = gh("run", "list", "--workflow", "farm", "-R", REPO,
-                   "--limit", "1", "--json", "databaseId,status,createdAt",
-                   "-q", ".[0].databaseId")
+                   "--limit", "1", "--json", "databaseId", "-q", ".[0].databaseId")
     run_id = out.strip()
     if not run_id:
         print("  ! no run_id picked")
         return None
     print(f"  run_id={run_id}, watching...")
-    code, _ = gh("run", "watch", run_id, "-R", REPO, "--exit-status", capture=True)
-    print(f"  finished (exit={code}). collecting artifacts...")
+    # watch без --exit-status — нам не важно если несколько jobs упали, главное чтобы run завершился
+    code, _ = gh("run", "watch", run_id, "-R", REPO, capture=True)
+    print(f"  finished. collecting artifacts (waiting for rate-limit if needed)...")
+    wait_for_rate_limit(min_remaining=1500)  # download 256 артефактов = много calls
     ok, fail = update_status_from_artifacts(run_id)
     print(f"  chunk done: ok={ok}, fail={fail}")
     return run_id

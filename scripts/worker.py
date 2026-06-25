@@ -52,29 +52,36 @@ ASSETS_PER_RELEASE = 1000
 
 
 def fetch_batch_zip(batch_id: str, repo: str, token: str, dst: Path) -> None:
-    """качаем asset из release-шарда: batches-<id//1000>."""
+    """
+    качаем asset из release-шарда: batches-<id//1000>.
+    fallback: если не нашли в expected shard — пытаемся соседние shard'ы (на случай
+    sharding-schema drift или ghost-asset перетекания).
+    """
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-    shard = int(batch_id) // ASSETS_PER_RELEASE
-    tag = f"batches-{shard}"
     asset_name = f"batch_{batch_id}.zip"
-    # достаём release по тегу
-    api = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
-    r = httpx.get(api, headers=headers, timeout=30)
-    r.raise_for_status()
-    rel = r.json()
-    for a in rel.get("assets", []):
-        if a["name"] == asset_name:
-            dl = httpx.get(
-                a["url"],
-                headers={**headers, "Accept": "application/octet-stream"},
-                follow_redirects=True,
-                timeout=120,
-            )
-            dl.raise_for_status()
-            dst.write_bytes(dl.content)
-            print(f"[batch] downloaded {asset_name} from {tag}: {dst.stat().st_size} bytes")
-            return
-    raise SystemExit(f"asset {asset_name} not found in release {tag}")
+    primary = int(batch_id) // ASSETS_PER_RELEASE
+    tags_to_try = [f"batches-{primary}", f"batches-{primary - 1}", f"batches-{primary + 1}"]
+    last_err = None
+    for tag in tags_to_try:
+        api = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
+        r = httpx.get(api, headers=headers, timeout=30)
+        if r.status_code != 200:
+            last_err = f"{tag}: HTTP {r.status_code}"
+            continue
+        rel = r.json()
+        for a in rel.get("assets", []):
+            if a["name"] == asset_name:
+                dl = httpx.get(
+                    a["url"],
+                    headers={**headers, "Accept": "application/octet-stream"},
+                    follow_redirects=True,
+                    timeout=120,
+                )
+                dl.raise_for_status()
+                dst.write_bytes(dl.content)
+                print(f"[batch] downloaded {asset_name} from {tag}: {dst.stat().st_size} bytes")
+                return
+    raise SystemExit(f"asset {asset_name} not found in any of {tags_to_try}. last={last_err}")
 
 
 def process_account(

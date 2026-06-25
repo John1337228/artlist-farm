@@ -16,6 +16,7 @@ orchestrator/fetched/
 # debug-выгрузки артефактов с github action runs
 _artifact*/
 _artifact_i2i*/
+_smoke*/
 batch_out/
 
 # test inputs остаются (одна seed-фотка для smoke run-one-i2i)
