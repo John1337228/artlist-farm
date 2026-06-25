@@ -1,0 +1,1 @@
+tRPC uploadRouter.getPresignedUrl HTTP 400: {"error":{"json":{"message":"[\n  {\n    \"code\": \"custom\",\n    \"message\": \"Unsupported file type for upload.\",\n    \"path\": [\n      \"fileType\"\n    ]\n  }\n]","code":-32600,"data":{"code":"BAD_REQUEST","httpStatus":400,"path":"uploadRouter.getPresignedUrl"}}}}

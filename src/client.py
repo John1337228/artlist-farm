@@ -303,52 +303,32 @@ class ArtlistClient:
 
     def get_presigned_upload(self, file_name: str, mime_type: str) -> dict:
         """
-        zod schema (по сообщению сервера): {fileName, fileType, mimeType, expiresIn(number)}.
-        fileType — enum, валидное значение из лога живой сессии: "deviceUpload".
-        expiresIn — в секундах; артлист сам использует 259200 (3 дня).
+        реальный шейп (из реверса фронт-кода chunk_10b27bb7ec7ecf11.js):
+          { fileName, fileType, expiresIn }  где fileType — MIME-тип ("image/jpeg")
+        ответ: { presignedUrl, fileUrl, fileKey, thumbnailUrl?, compressedUrl? }
         """
-        attempts = [
-            {"fileName": file_name, "mimeType": mime_type, "fileType": "deviceUpload", "expiresIn": 259200},
-            {"fileName": file_name, "mimeType": mime_type, "fileType": "image", "expiresIn": 259200},
-            {"fileName": file_name, "mimeType": mime_type, "fileType": "deviceUpload", "expiresIn": 3600},
-        ]
-        last: Optional[ArtlistError] = None
-        for inp in attempts:
-            try:
-                return self.trpc_post("uploadRouter.getPresignedUrl", inp)
-            except ArtlistError as e:
-                last = e
-                continue
-        raise last or ArtlistError("getPresignedUrl: all attempts failed")
+        return self.trpc_post(
+            "uploadRouter.getPresignedUrl",
+            {"fileName": file_name, "fileType": mime_type, "expiresIn": 86400},
+        )
 
-    def upload_file_to_s3(self, presigned: dict, file_bytes: bytes, mime_type: str) -> str:
-        """возвращает fileKey/Path для последующего getPresignedUrlFromKey."""
-        # стандартный паттерн artlist: {url, fields?, fileKey}
-        url = presigned.get("url") or presigned.get("presignedUrl") or presigned.get("uploadUrl")
+    def upload_file_to_s3(self, presigned: dict, file_bytes: bytes, mime_type: str) -> tuple[str, str]:
+        """
+        грузим PUT в S3 по presignedUrl. возвращает (fileKey, fileUrl).
+        fileUrl — постоянный GET-URL уже подписанный в ответе getPresignedUrl,
+        отдельный getPresignedUrlFromKey не нужен.
+        """
+        url = presigned.get("presignedUrl") or presigned.get("url") or presigned.get("uploadUrl")
         if not url:
             raise ArtlistError(f"unknown presigned shape: {list(presigned)}")
-        # POST с fields = multipart (S3 form post), PUT — иначе
-        if presigned.get("fields"):
-            files = {k: (None, v) for k, v in presigned["fields"].items()}
-            files["file"] = ("upload", file_bytes, mime_type)
-            r = httpx.post(url, files=files, timeout=120)
-        else:
-            r = httpx.put(
-                url,
-                content=file_bytes,
-                headers={"content-type": mime_type},
-                timeout=120,
-            )
+        r = httpx.put(url, content=file_bytes, headers={"content-type": mime_type}, timeout=120)
         if r.status_code not in (200, 201, 204):
             raise ArtlistError(f"S3 upload HTTP {r.status_code}: {r.text[:300]}")
-        file_key = presigned.get("fileKey") or presigned.get("key") or presigned.get("Key")
-        if not file_key:
-            raise ArtlistError(f"presigned response has no fileKey: {presigned}")
-        return file_key
-
-    def get_get_url_from_key(self, file_key: str) -> str:
-        res = self.trpc_post("uploadRouter.getPresignedUrlFromKey", {"fileKey": file_key})
-        return res.get("url") or res.get("presignedUrl") or res["data"]["url"]
+        file_key = presigned.get("fileKey") or presigned.get("key")
+        file_url = presigned.get("fileUrl")
+        if not file_key or not file_url:
+            raise ArtlistError(f"presigned response missing fileKey/fileUrl: {presigned}")
+        return file_key, file_url
 
     def get_cost_quote(
         self,
@@ -510,12 +490,11 @@ class ArtlistClient:
 
         if image_path:
             file_name = image_path.name
-            mime_type = mimetypes.guess_type(file_name)[0] or "image/png"
+            mime_type = mimetypes.guess_type(file_name)[0] or "image/jpeg"
             self.log(f"upload {file_name} ({mime_type})")
             presigned = self.get_presigned_upload(file_name, mime_type)
             data = presigned.get("data", presigned)
-            file_key = self.upload_file_to_s3(data, image_path.read_bytes(), mime_type)
-            image_url = self.get_get_url_from_key(file_key)
+            file_key, image_url = self.upload_file_to_s3(data, image_path.read_bytes(), mime_type)
             feature = "image-to-image"
             model_group_id = image_to_image_group_id
 
