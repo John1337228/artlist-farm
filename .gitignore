@@ -7,3 +7,15 @@ input/
 .DS_Store
 storage_state.json
 profile/
+
+# orchestrator local state — никогда не пушим, это локальный inventory + 875 MB батчей
+orchestrator/staging/
+orchestrator/inventory.db
+orchestrator/fetched/
+
+# debug-выгрузки артефактов с github action runs
+_artifact*/
+_artifact_i2i*/
+batch_out/
+
+# test inputs остаются (одна seed-фотка для smoke run-one-i2i)

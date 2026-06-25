@@ -1,0 +1,84 @@
+name: farm
+
+on:
+  workflow_dispatch:
+    inputs:
+      batches:
+        description: "comma- or range-separated batch ids, e.g. '0,1,2' or '0-49' or 'all'"
+        required: true
+        default: "0-9"
+      prompt:
+        description: "prompt for i2i"
+        required: false
+        default: "remove the watermark from the photo and keep the original detail"
+
+jobs:
+  expand:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        shell: python
+        run: |
+          import json, os, re
+          spec = os.environ["INPUT"].strip()
+          ids: set[int] = set()
+          if spec == "all":
+              # 'all' разворачиваем грубо до 1000 — фактические артефакты возьмутся какие есть, остальные fail-fast
+              ids = set(range(0, 1000))
+          else:
+              for part in spec.split(","):
+                  part = part.strip()
+                  if not part: continue
+                  if "-" in part:
+                      a, b = part.split("-", 1)
+                      ids.update(range(int(a), int(b) + 1))
+                  else:
+                      ids.add(int(part))
+          ids_list = [f"{i:04d}" for i in sorted(ids)]
+          matrix = {"batch_id": ids_list}
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("matrix=" + json.dumps(matrix) + "\n")
+          print("expanded:", len(ids_list), "ids")
+        env:
+          INPUT: ${{ inputs.batches }}
+
+  worker:
+    needs: expand
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 256
+      matrix: ${{ fromJSON(needs.expand.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: process batch ${{ matrix.batch_id }}
+        env:
+          BATCH_ID: ${{ matrix.batch_id }}
+          INPUTS_REPO: John1337228/artlist-inputs
+          INPUTS_TOKEN: ${{ secrets.INPUTS_PAT }}
+          PROMPT: ${{ inputs.prompt }}
+          ARTIFACT_DIR: ./batch_out
+        run: python scripts/worker.py
+
+      - name: upload batch results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: batch-${{ matrix.batch_id }}
+          path: batch_out/
+          if-no-files-found: warn
+          retention-days: 3
