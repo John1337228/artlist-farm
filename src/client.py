@@ -434,10 +434,11 @@ class ArtlistClient:
                     if status in ("succeeded", "completed", "success", "done"):
                         return it
                     if status in ("failed", "error", "cancelled", "rejected"):
-                        raise ArtlistError(f"generation failed: {json.dumps(it)[:600]}")
+                        # передаём ПОЛНЫЙ item — без обрезки чтоб видеть errorCode и любые подсказки
+                        raise ArtlistError(f"generation failed: {json.dumps(it, ensure_ascii=False)}")
                     break
             time.sleep(interval)
-        raise ArtlistError(f"generation timeout. last state: {json.dumps(last)[:600] if last else '<none>'}")
+        raise ArtlistError(f"generation timeout. last state: {json.dumps(last, ensure_ascii=False) if last else '<none>'}")
 
     def extract_output_urls(self, item: dict) -> list[str]:
         """достаём image URL(s) из completed item.

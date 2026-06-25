@@ -22,11 +22,12 @@ from src.image_prep import ensure_jpg
 
 
 PROMPTS = [
-    "clean product photo, restore the original surface, remove any text overlays and logos, keep the part shape intact",
-    "professional product photography of the same item on a neutral background, no annotations or signatures",
-    "industrial spare part on a clean white background, high detail, photorealistic, preserve original geometry",
+    # без слова watermark, очень нейтральный; и aspect_ratio=1:1 (детали по сути квадрат)
+    ("the same industrial spare part, photo on a plain white studio background", "1:1"),
+    # text2image baseline — он должен пройти content filter
+    # (если text2image работает а image-to-image падает на разных промптах — значит блок в самом инпуте)
+    ("a small black industrial spare part on a plain white studio background, photo", "1:1"),
 ]
-PROMPT = PROMPTS[0]
 INPUT_RELPATH = "test_inputs/sample.jpg"
 
 
@@ -68,19 +69,21 @@ def main() -> int:
         print(f"[quota] image: {img_quota.get('used')}/{img_quota.get('limit')} → run {n}")
 
         for i in range(n):
-            prompt = PROMPTS[i % len(PROMPTS)]
-            print(f"[gen {i+1}/{n}] prompt: {prompt!r}")
+            prompt, ar = PROMPTS[i % len(PROMPTS)]
+            # i==1 → text2image (без image_path) — baseline для проверки content filter
+            use_input = (i == 0)
+            print(f"[gen {i+1}/{n}] mode={'i2i' if use_input else 't2i'} ar={ar} prompt={prompt!r}")
             t0 = time.time()
             try:
                 item = c.run_one_generation(
                     chat_session_id=chat_id,
                     prompt=prompt,
-                    image_path=jpg,
+                    image_path=jpg if use_input else None,
+                    aspect_ratio=ar,
                 )
             except ArtlistError as e:
                 print(f"[gen {i+1}] FAIL: {e}")
                 (out_dir / f"_err_gen{i}.txt").write_text(str(e), encoding="utf-8")
-                # не break — пробуем следующий промпт
                 continue
             elapsed = time.time() - t0
             urls = c.extract_output_urls(item)
