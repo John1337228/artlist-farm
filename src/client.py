@@ -93,11 +93,11 @@ class ArtlistClient:
             timeout=45,
             proxy=proxy,
         )
-        # базовые заголовки помимо тех что добавит impersonate
+        # ВАЖНО: origin/referer глобально НЕ ставим — для прямого GET корневой страницы
+        # их быть не должно (реальный браузер их не шлёт при навигации),
+        # cloudflare ругается на нетипичный паттерн. ставим точечно в trpc/auth-callback.
         self.session.headers.update({
             "accept-language": "en-US,en;q=0.9",
-            "origin": TOOLKIT,
-            "referer": f"{TOOLKIT}/",
         })
         self.account: Optional[ArtlistAccount] = None
         self._warmed = False
@@ -148,7 +148,11 @@ class ArtlistClient:
                 "callbackUrl": f"{TOOLKIT}/image-video-generator?mode=image",
                 "json": "true",
             },
-            headers={"content-type": "application/x-www-form-urlencoded"},
+            headers={
+                "content-type": "application/x-www-form-urlencoded",
+                "origin": TOOLKIT,
+                "referer": f"{TOOLKIT}/",
+            },
         )
         if r.status_code != 200:
             raise ArtlistError(f"signup HTTP {r.status_code}: {r.text[:300]}")
@@ -186,7 +190,11 @@ class ArtlistClient:
                 "callbackUrl": f"{TOOLKIT}/image-video-generator?mode=image",
                 "json": "true",
             },
-            headers={"content-type": "application/x-www-form-urlencoded"},
+            headers={
+                "content-type": "application/x-www-form-urlencoded",
+                "origin": TOOLKIT,
+                "referer": f"{TOOLKIT}/",
+            },
         )
         if r.status_code != 200:
             raise ArtlistError(f"login HTTP {r.status_code}: {r.text[:300]}")
@@ -215,6 +223,7 @@ class ArtlistClient:
             headers={
                 "x-trpc-source": "nextjs-react",
                 "x-request-id": _uuid7(),
+                "referer": f"{TOOLKIT}/image-video-generator?mode=image",
             },
         )
         return self._unwrap(proc, r)
@@ -228,6 +237,8 @@ class ArtlistClient:
                 "x-trpc-source": "nextjs-react",
                 "x-request-id": _uuid7(),
                 "content-type": "application/json",
+                "origin": TOOLKIT,
+                "referer": f"{TOOLKIT}/image-video-generator?mode=image",
             },
         )
         return self._unwrap(proc, r)
