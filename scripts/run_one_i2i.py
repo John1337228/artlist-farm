@@ -21,13 +21,8 @@ from src.client import ArtlistClient, ArtlistError
 from src.image_prep import ensure_jpg
 
 
-PROMPTS = [
-    # без слова watermark, очень нейтральный; и aspect_ratio=1:1 (детали по сути квадрат)
-    ("the same industrial spare part, photo on a plain white studio background", "1:1"),
-    # text2image baseline — он должен пройти content filter
-    # (если text2image работает а image-to-image падает на разных промптах — значит блок в самом инпуте)
-    ("a small black industrial spare part on a plain white studio background, photo", "1:1"),
-]
+# возвращаю дословно как у phantom'a, чтобы исключить вариативность промпта
+PROMPT = "remove the watermark from the photo and keep the original detail"
 INPUT_RELPATH = "test_inputs/sample.jpg"
 
 
@@ -47,7 +42,6 @@ def main() -> int:
         return 2
     jpg = ensure_jpg(inp)
     print(f"[input] {jpg.name} ({jpg.stat().st_size} bytes)")
-    # копируем оригинал в out/ для сравнения side-by-side в артефакте
     (out_dir / f"_orig_{jpg.name}").write_bytes(jpg.read_bytes())
 
     print(f"[runner-ip] {httpx.get('https://api.ipify.org', timeout=10).text}")
@@ -69,17 +63,13 @@ def main() -> int:
         print(f"[quota] image: {img_quota.get('used')}/{img_quota.get('limit')} → run {n}")
 
         for i in range(n):
-            prompt, ar = PROMPTS[i % len(PROMPTS)]
-            # i==1 → text2image (без image_path) — baseline для проверки content filter
-            use_input = (i == 0)
-            print(f"[gen {i+1}/{n}] mode={'i2i' if use_input else 't2i'} ar={ar} prompt={prompt!r}")
+            print(f"[gen {i+1}/{n}] i2i prompt={PROMPT!r}")
             t0 = time.time()
             try:
                 item = c.run_one_generation(
                     chat_session_id=chat_id,
-                    prompt=prompt,
-                    image_path=jpg if use_input else None,
-                    aspect_ratio=ar,
+                    prompt=PROMPT,
+                    image_path=jpg,
                 )
             except ArtlistError as e:
                 print(f"[gen {i+1}] FAIL: {e}")

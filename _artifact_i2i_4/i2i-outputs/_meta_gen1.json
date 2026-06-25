@@ -1,0 +1,37 @@
+{
+  "id": "019f000e-f5a9-7f8c-a40f-d4a9c50fb2b0",
+  "outputId": "019f000f-df8e-7710-9c32-9569ec8439d1",
+  "status": "completed",
+  "fileKey": "61b7fa91-1aad-47ec-8417-6d69aae19742",
+  "thumbnailKey": "61b7fa91-1aad-47ec-8417-6d69aae19742",
+  "thumbnailUrl": "https://v3b.fal.media/files/b/0a9fbed9/_WpAiZVa0KWplsAtavltJ_3IxDEQuD.png",
+  "metadata": {
+    "fileType": "JPEG",
+    "isUpscaled": false,
+    "dimensions": {
+      "width": 2048,
+      "height": 2048
+    }
+  },
+  "chatSessionId": "019f000d-f289-735f-9ee6-b1d64b2637d0",
+  "prompt": "a small black industrial spare part on a plain white studio background, photo",
+  "negativePrompt": null,
+  "modelId": 2340,
+  "invocationType": "model",
+  "settings": {
+    "prompt": "a small black industrial spare part on a plain white studio background, photo",
+    "num_images": 1,
+    "resolution": "medium",
+    "aspect_ratio": "1:1"
+  },
+  "feature": "text-to-image",
+  "createdAt": "2026-06-25T18:33:28.233Z",
+  "generationSource": "toolkit_standard",
+  "generationMethod": "free",
+  "effectiveGenerationMethod": "free",
+  "price": 0,
+  "type": "image",
+  "aspectRatio": "1:1",
+  "assetType": "generatedImage",
+  "imageUrl": "https://v3b.fal.media/files/b/0a9fbed9/_WpAiZVa0KWplsAtavltJ_3IxDEQuD.png"
+}

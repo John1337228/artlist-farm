@@ -315,19 +315,30 @@ class ArtlistClient:
     def upload_file_to_s3(self, presigned: dict, file_bytes: bytes, mime_type: str) -> tuple[str, str]:
         """
         грузим PUT в S3 по presignedUrl. возвращает (fileKey, fileUrl).
-        fileUrl — постоянный GET-URL уже подписанный в ответе getPresignedUrl,
-        отдельный getPresignedUrlFromKey не нужен.
+        fileUrl — постоянный GET-URL уже подписанный в ответе getPresignedUrl.
         """
+        self.log(f"presigned keys: {list(presigned)}")
         url = presigned.get("presignedUrl") or presigned.get("url") or presigned.get("uploadUrl")
         if not url:
-            raise ArtlistError(f"unknown presigned shape: {list(presigned)}")
+            raise ArtlistError(f"unknown presigned shape: {list(presigned)} sample={json.dumps(presigned)[:300]}")
+        self.log(f"PUT url (host+path only): {url.split('?')[0]}")
+        self.log(f"PUT body size: {len(file_bytes)} bytes, content-type: {mime_type}")
         r = httpx.put(url, content=file_bytes, headers={"content-type": mime_type}, timeout=120)
+        self.log(f"PUT response: HTTP {r.status_code}, body[:300]={r.text[:300]!r}, headers={dict(r.headers)}")
         if r.status_code not in (200, 201, 204):
             raise ArtlistError(f"S3 upload HTTP {r.status_code}: {r.text[:300]}")
         file_key = presigned.get("fileKey") or presigned.get("key")
         file_url = presigned.get("fileUrl")
+        self.log(f"file_key: {file_key}")
+        self.log(f"file_url (GET, first 120): {file_url[:120] if file_url else '<none>'}...")
         if not file_key or not file_url:
             raise ArtlistError(f"presigned response missing fileKey/fileUrl: {presigned}")
+        # верифицируем что s3 реально знает про этот объект
+        try:
+            verify = httpx.head(file_url, timeout=20)
+            self.log(f"S3 HEAD verify: HTTP {verify.status_code}, content-length={verify.headers.get('content-length')}")
+        except Exception as e:
+            self.log(f"S3 HEAD verify err: {e}")
         return file_key, file_url
 
     def get_cost_quote(
@@ -411,6 +422,7 @@ class ArtlistClient:
                     "fileName": file_name or file_key,
                 },
             }]
+        self.log(f"createUserGeneration body (truncated): {json.dumps(body, ensure_ascii=False)[:600]}...")
         res = self.trpc_post("userGenerationRouter.createUserGeneration", body)
         gen_id = res["data"]["id"] if "data" in res else res["id"]
         self.log(f"generation queued id={gen_id}")
