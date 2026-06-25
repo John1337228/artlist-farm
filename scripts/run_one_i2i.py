@@ -21,7 +21,12 @@ from src.client import ArtlistClient, ArtlistError
 from src.image_prep import ensure_jpg
 
 
-PROMPT = "remove the watermark from the photo, preserve all original details and product surface texture"
+PROMPTS = [
+    "clean product photo, restore the original surface, remove any text overlays and logos, keep the part shape intact",
+    "professional product photography of the same item on a neutral background, no annotations or signatures",
+    "industrial spare part on a clean white background, high detail, photorealistic, preserve original geometry",
+]
+PROMPT = PROMPTS[0]
 INPUT_RELPATH = "test_inputs/sample.jpg"
 
 
@@ -63,18 +68,20 @@ def main() -> int:
         print(f"[quota] image: {img_quota.get('used')}/{img_quota.get('limit')} → run {n}")
 
         for i in range(n):
+            prompt = PROMPTS[i % len(PROMPTS)]
+            print(f"[gen {i+1}/{n}] prompt: {prompt!r}")
             t0 = time.time()
             try:
                 item = c.run_one_generation(
                     chat_session_id=chat_id,
-                    prompt=PROMPT,
+                    prompt=prompt,
                     image_path=jpg,
                 )
             except ArtlistError as e:
                 print(f"[gen {i+1}] FAIL: {e}")
-                # сдампим полный traceback в out/, чтоб видно было в артефакте
                 (out_dir / f"_err_gen{i}.txt").write_text(str(e), encoding="utf-8")
-                break
+                # не break — пробуем следующий промпт
+                continue
             elapsed = time.time() - t0
             urls = c.extract_output_urls(item)
             (out_dir / f"_meta_gen{i}.json").write_text(
