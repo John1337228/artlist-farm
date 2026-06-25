@@ -1,0 +1,38 @@
+name: run-one-i2i
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'scripts/run_one_i2i.py'
+      - '.github/workflows/run-one-i2i.yml'
+      - 'test_inputs/**'
+
+jobs:
+  i2i:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: run e2e i2i
+        run: python scripts/run_one_i2i.py
+
+      - name: upload outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: i2i-outputs
+          path: out/
+          if-no-files-found: warn
+          retention-days: 7

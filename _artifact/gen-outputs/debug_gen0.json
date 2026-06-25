@@ -1,0 +1,37 @@
+{
+  "id": "019efffd-012c-70c3-9cca-435cfa99ec44",
+  "outputId": "019efffd-d7f7-7d6d-a77a-03e4495f6997",
+  "status": "completed",
+  "fileKey": "35eb1ced-8575-4c90-a050-48a96e0841b7",
+  "thumbnailKey": "35eb1ced-8575-4c90-a050-48a96e0841b7",
+  "thumbnailUrl": "https://v3b.fal.media/files/b/0a9fbe6c/BENCxm5OcWbfLjTgDWNiS_cR7fwCxz.png",
+  "metadata": {
+    "fileType": "JPEG",
+    "isUpscaled": false,
+    "dimensions": {
+      "width": 2048,
+      "height": 1440
+    }
+  },
+  "chatSessionId": "019efffc-fc8a-7bdb-86b0-5027d9385c78",
+  "prompt": "a cute orange tabby cat sitting on a wooden chair in a sunlit kitchen, photorealistic studio photo",
+  "negativePrompt": null,
+  "modelId": 2340,
+  "invocationType": "model",
+  "settings": {
+    "prompt": "a cute orange tabby cat sitting on a wooden chair in a sunlit kitchen, photorealistic studio photo",
+    "num_images": 1,
+    "resolution": "medium",
+    "aspect_ratio": "16:9"
+  },
+  "feature": "text-to-image",
+  "createdAt": "2026-06-25T18:13:51.532Z",
+  "generationSource": "toolkit_standard",
+  "generationMethod": "free",
+  "effectiveGenerationMethod": "free",
+  "price": 0,
+  "type": "image",
+  "aspectRatio": "16:9",
+  "assetType": "generatedImage",
+  "imageUrl": "https://v3b.fal.media/files/b/0a9fbe6c/BENCxm5OcWbfLjTgDWNiS_cR7fwCxz.png"
+}

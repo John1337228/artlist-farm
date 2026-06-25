@@ -459,18 +459,32 @@ class ArtlistClient:
         raise ArtlistError(f"generation timeout. last state: {json.dumps(last)[:600] if last else '<none>'}")
 
     def extract_output_urls(self, item: dict) -> list[str]:
-        """достаём все image URLs из completed item.
-        ожидаем что-то типа: item.outputs = [{fileUrl|url|s3Url}, ...] или item.files = [...]"""
+        """достаём image URL(s) из completed item.
+        реальная структура (увидел из debug дампа):
+          item.imageUrl  — прямой URL на fal.media, открытый, без подписи
+          item.thumbnailUrl — превью
+        для num_images > 1 — fallback на массивы outputs/files."""
         urls: list[str] = []
+        for k in ("imageUrl",):
+            if isinstance(item.get(k), str):
+                urls.append(item[k])
         for k in ("outputs", "files", "results", "generationOutputs"):
             arr = item.get(k)
             if isinstance(arr, list):
                 for a in arr:
                     if isinstance(a, dict):
-                        for f in ("fileUrl", "url", "s3Url", "downloadUrl"):
+                        for f in ("imageUrl", "fileUrl", "url", "s3Url", "downloadUrl"):
                             if a.get(f):
                                 urls.append(a[f])
-        return urls
+                                break
+        # уникальные с сохранением порядка
+        seen: set[str] = set()
+        out: list[str] = []
+        for u in urls:
+            if u not in seen:
+                seen.add(u)
+                out.append(u)
+        return out
 
     # ---------------- helper composite ----------------
 
