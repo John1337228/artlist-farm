@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+out/
+input/
+*.log
+.DS_Store
+storage_state.json
+profile/

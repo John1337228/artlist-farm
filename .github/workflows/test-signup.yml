@@ -1,0 +1,34 @@
+name: test-signup
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'scripts/test_signup.py'
+      - '.github/workflows/test-signup.yml'
+
+jobs:
+  signup:
+    # пробуем сразу 3 разных раннера — у ubuntu/windows/macos разные egress IP-диапазоны Azure DC,
+    # cloudflare-блокировка артлиста может разнится между ними
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: run signup smoke
+        run: python scripts/test_signup.py
