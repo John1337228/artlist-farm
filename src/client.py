@@ -303,13 +303,14 @@ class ArtlistClient:
 
     def get_presigned_upload(self, file_name: str, mime_type: str) -> dict:
         """
-        пытаемся несколько вариантов входов — точный шейп узнаем по первому ответу.
-        ждём поля типа: {url, fileKey, fields?} или {presignedUrl, key}.
+        zod schema (по сообщению сервера): {fileName, fileType, mimeType, expiresIn(number)}.
+        fileType — enum, валидное значение из лога живой сессии: "deviceUpload".
+        expiresIn — в секундах; артлист сам использует 259200 (3 дня).
         """
         attempts = [
-            {"fileName": file_name, "mimeType": mime_type},
-            {"fileName": file_name, "contentType": mime_type},
-            {"fileName": file_name, "mimeType": mime_type, "fileType": "deviceUpload"},
+            {"fileName": file_name, "mimeType": mime_type, "fileType": "deviceUpload", "expiresIn": 259200},
+            {"fileName": file_name, "mimeType": mime_type, "fileType": "image", "expiresIn": 259200},
+            {"fileName": file_name, "mimeType": mime_type, "fileType": "deviceUpload", "expiresIn": 3600},
         ]
         last: Optional[ArtlistError] = None
         for inp in attempts:
