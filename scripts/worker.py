@@ -48,29 +48,33 @@ def env(k: str, default: str | None = None, required: bool = False) -> str:
     return v or ""
 
 
+ASSETS_PER_RELEASE = 1000
+
+
 def fetch_batch_zip(batch_id: str, repo: str, token: str, dst: Path) -> None:
-    """качаем asset `batch_<id>.zip` из последнего release inputs-репо."""
+    """качаем asset из release-шарда: batches-<id//1000>."""
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-    api = f"https://api.github.com/repos/{repo}/releases"
+    shard = int(batch_id) // ASSETS_PER_RELEASE
+    tag = f"batches-{shard}"
+    asset_name = f"batch_{batch_id}.zip"
+    # достаём release по тегу
+    api = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
     r = httpx.get(api, headers=headers, timeout=30)
     r.raise_for_status()
-    releases = r.json()
-    asset_name = f"batch_{batch_id}.zip"
-    for rel in releases:
-        for a in rel.get("assets", []):
-            if a["name"] == asset_name:
-                url = a["url"]
-                dl = httpx.get(
-                    url,
-                    headers={**headers, "Accept": "application/octet-stream"},
-                    follow_redirects=True,
-                    timeout=120,
-                )
-                dl.raise_for_status()
-                dst.write_bytes(dl.content)
-                print(f"[batch] downloaded {asset_name}: {dst.stat().st_size} bytes")
-                return
-    raise SystemExit(f"asset {asset_name} not found across {len(releases)} releases")
+    rel = r.json()
+    for a in rel.get("assets", []):
+        if a["name"] == asset_name:
+            dl = httpx.get(
+                a["url"],
+                headers={**headers, "Accept": "application/octet-stream"},
+                follow_redirects=True,
+                timeout=120,
+            )
+            dl.raise_for_status()
+            dst.write_bytes(dl.content)
+            print(f"[batch] downloaded {asset_name} from {tag}: {dst.stat().st_size} bytes")
+            return
+    raise SystemExit(f"asset {asset_name} not found in release {tag}")
 
 
 def process_account(

@@ -1,0 +1,3 @@
+slug	status	note
+06536d313c785a82	ok	https://v3b.fal.media/files/b/0a9fbfd9/p_-ZuQj_37wYTFUGtcXZN_ZU1T7iTK.png
+06722740db78636a	failed	generation failed: {"id": "019f0037-83c5-7103-8531-4f3b93005430", "type": "image", "status": "failed", "errorCode": "PROVIDER_CONTENT_SAFETY_VIOLATION", "chatSessionId": "019f0035-fc7a-74fc-921f-8a8291fddf36", "prompt": "remove the watermark from the photo and keep the original detail", "negativePro

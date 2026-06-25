@@ -1,0 +1,3 @@
+slug	status	note
+07af73516028d198	ok	https://v3b.fal.media/files/b/0a9fbfe6/3yUTwolsn17UIgb0cA-Oo_0chRsctF.png
+07d5318ff936dc28	failed	generation failed: {"id": "019f0039-0889-7dc4-82d8-318c91cbe636", "type": "image", "status": "failed", "errorCode": "PROVIDER_CONTENT_SAFETY_VIOLATION", "chatSessionId": "019f0037-fb7d-7b52-b41b-434e5efdcb89", "prompt": "remove the watermark from the photo and keep the original detail", "negativePro
