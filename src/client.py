@@ -312,34 +312,33 @@ class ArtlistClient:
             {"fileName": file_name, "fileType": mime_type, "expiresIn": 86400},
         )
 
-    def upload_file_to_s3(self, presigned: dict, file_bytes: bytes, mime_type: str) -> tuple[str, str]:
+    def upload_file_to_s3(self, presigned: dict, file_bytes: bytes, mime_type: str) -> str:
         """
-        грузим PUT в S3 по presignedUrl. возвращает (fileKey, fileUrl).
-        fileUrl — постоянный GET-URL уже подписанный в ответе getPresignedUrl.
+        грузим PUT в S3 по presignedUrl. возвращает только fileKey.
+        НЕ возвращаем fileUrl из presigned — это прямой неподписанный URL, fal.ai по нему получит 403.
+        читаемый presigned GET URL берём отдельно через get_signed_get_url().
         """
-        self.log(f"presigned keys: {list(presigned)}")
         url = presigned.get("presignedUrl") or presigned.get("url") or presigned.get("uploadUrl")
         if not url:
             raise ArtlistError(f"unknown presigned shape: {list(presigned)} sample={json.dumps(presigned)[:300]}")
-        self.log(f"PUT url (host+path only): {url.split('?')[0]}")
-        self.log(f"PUT body size: {len(file_bytes)} bytes, content-type: {mime_type}")
         r = httpx.put(url, content=file_bytes, headers={"content-type": mime_type}, timeout=120)
-        self.log(f"PUT response: HTTP {r.status_code}, body[:300]={r.text[:300]!r}, headers={dict(r.headers)}")
         if r.status_code not in (200, 201, 204):
             raise ArtlistError(f"S3 upload HTTP {r.status_code}: {r.text[:300]}")
         file_key = presigned.get("fileKey") or presigned.get("key")
-        file_url = presigned.get("fileUrl")
-        self.log(f"file_key: {file_key}")
-        self.log(f"file_url (GET, first 120): {file_url[:120] if file_url else '<none>'}...")
-        if not file_key or not file_url:
-            raise ArtlistError(f"presigned response missing fileKey/fileUrl: {presigned}")
-        # верифицируем что s3 реально знает про этот объект
-        try:
-            verify = httpx.head(file_url, timeout=20)
-            self.log(f"S3 HEAD verify: HTTP {verify.status_code}, content-length={verify.headers.get('content-length')}")
-        except Exception as e:
-            self.log(f"S3 HEAD verify err: {e}")
-        return file_key, file_url
+        if not file_key:
+            raise ArtlistError(f"presigned response has no fileKey: {presigned}")
+        return file_key
+
+    def get_signed_get_url(self, file_key: str) -> str:
+        """вызывает getPresignedUrlFromKey — отдаёт ПОДПИСАННЫЙ GET URL.
+        нужен для передачи fal.ai в createUserGeneration (иначе он получит 403 на S3)."""
+        res = self.trpc_post("uploadRouter.getPresignedUrlFromKey", {"fileKey": file_key})
+        u = res.get("url") or res.get("presignedUrl")
+        if not u and isinstance(res.get("data"), dict):
+            u = res["data"].get("url") or res["data"].get("presignedUrl")
+        if not u:
+            raise ArtlistError(f"getPresignedUrlFromKey: no url in {res}")
+        return u
 
     def get_cost_quote(
         self,
@@ -507,7 +506,10 @@ class ArtlistClient:
             self.log(f"upload {file_name} ({mime_type})")
             presigned = self.get_presigned_upload(file_name, mime_type)
             data = presigned.get("data", presigned)
-            file_key, image_url = self.upload_file_to_s3(data, image_path.read_bytes(), mime_type)
+            file_key = self.upload_file_to_s3(data, image_path.read_bytes(), mime_type)
+            # signed GET URL — без него провайдер получит 403 на S3
+            image_url = self.get_signed_get_url(file_key)
+            self.log(f"signed GET url: {image_url[:120]}...")
             feature = "image-to-image"
             model_group_id = image_to_image_group_id
 
